@@ -1,0 +1,45 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: interview-ai-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/interview_ai_db}
+    username: ${DB_USERNAME:interview_ai}
+    password: ${DB_PASSWORD:InterviewAI@123}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:CHANGE_THIS_TO_LONG_SECRET_KEY_256_BITS}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  cors:
+    allowed-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
+  ai:
+    provider: ${AI_PROVIDER:ollama}
+
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:qwen3:8b}
+
+# Optional cloud provider. Set AI_PROVIDER=openai to use this path.
+# openai:
+#   api-key: ${OPENAI_API_KEY:}
+#   model: gpt-4.1-mini
+#   base-url: https://api.openai.com/v1
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

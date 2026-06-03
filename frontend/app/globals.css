@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-inter: 'Inter', system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-inter);
+  min-height: 100vh;
+  margin: 0;
+  background-color: #07070f;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124,58,237,0.18), transparent),
+    radial-gradient(ellipse 60% 40% at 85% 80%,  rgba(79,70,229,0.10),  transparent),
+    radial-gradient(ellipse 40% 30% at 5%  60%,  rgba(20,184,166,0.06), transparent);
+  background-attachment: fixed;
+  color: #f1f5f9;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: rgba(124,58,237,0.35); color: #fff; }
+
+/* Scrollbar */
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: rgba(255,255,255,0.12); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* Focus ring */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2
+         focus-visible:ring-violet-400/70 focus-visible:ring-offset-2
+         focus-visible:ring-offset-[#07070f];
+}
+
+/* Dot grids */
+.dot-grid {
+  background-image: radial-gradient(rgba(255,255,255,0.06) 1.5px, transparent 1.5px);
+  background-size: 26px 26px;
+}
+.dot-grid-white {
+  background-image: radial-gradient(rgba(255,255,255,0.12) 1.5px, transparent 1.5px);
+  background-size: 26px 26px;
+}
+
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(135deg, #c4b5fd, #818cf8, #67e8f9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-subtle {
+  background: linear-gradient(90deg, #a78bfa, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card hover lift */
+.card-lift { transition: box-shadow 0.2s, transform 0.2s; }
+.card-lift:hover { transform: translateY(-2px); }
+
+/* Autofill override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f1f5f9;
+  -webkit-box-shadow: 0 0 0 1000px #111127 inset;
+  transition: background-color 5000s;
+}
