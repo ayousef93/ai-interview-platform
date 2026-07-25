@@ -28,11 +28,17 @@ app:
   cors:
     allowed-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
   ai:
-    provider: ${AI_PROVIDER:ollama}
+    provider: ${AI_PROVIDER:gemini}
 
 ollama:
   base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
   model: ${OLLAMA_MODEL:qwen3:8b}
+
+# Google Gemini. Set AI_PROVIDER=gemini to use this path.
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:gemini-3.5-flash}
+  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
 
 # Optional cloud provider. Set AI_PROVIDER=openai to use this path.
 # openai:

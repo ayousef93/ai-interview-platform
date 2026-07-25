@@ -25,6 +25,8 @@ export interface InterviewQuestionDto {
   prompt: string;
   category: string;
   expectedDurationSeconds: number;
+  /** Answer choices for multiple-choice questions. Empty for free-text questions. */
+  options: string[];
 }
 
 export interface InterviewSessionDto {

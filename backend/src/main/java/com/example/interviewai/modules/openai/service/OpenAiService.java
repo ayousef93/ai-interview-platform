@@ -1,10 +1,12 @@
 package com.example.interviewai.modules.openai.service;
 
 import com.example.interviewai.modules.interview.model.InterviewType;
+import com.example.interviewai.modules.openai.dto.GeneratedQuestion;
 import com.example.interviewai.modules.openai.dto.OpenAiFeedbackResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -16,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OpenAiService {
@@ -41,15 +44,27 @@ public class OpenAiService {
     @Value("${ollama.model:qwen3:8b}")
     private String ollamaModel;
 
-    public List<String> generateQuestions(String roleName, String level, InterviewType type) {
+    @Value("${gemini.api-key:}")
+    private String geminiApiKey;
+
+    @Value("${gemini.model:gemini-2.5-flash}")
+    private String geminiModel;
+
+    @Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
+    private String geminiBaseUrl;
+
+    public List<GeneratedQuestion> generateQuestions(String roleName, String level, InterviewType type) {
         String prompt = """
                 You are an expert technical interviewer.
-                Generate exactly 5 concise interview questions for this candidate profile.
+                Generate exactly 5 multiple-choice interview questions for this candidate profile.
                 Role: %s
                 Level: %s
                 Interview type: %s
+                Each question must have exactly 4 answer options, with exactly one correct option.
+                Vary the position of the correct option across questions.
                 Return strict JSON with this shape:
-                {"questions":["question 1","question 2","question 3","question 4","question 5"]}
+                {"questions":[{"prompt":"question text","options":["A","B","C","D"],"correctIndex":0}]}
+                correctIndex is the zero-based index of the correct option.
                 No markdown.
                 """.formatted(roleName, level, type.name());
 
@@ -60,11 +75,37 @@ public class OpenAiService {
             if (!questionsNode.isArray()) {
                 return mockQuestions(roleName, level, type);
             }
-            List<String> questions = objectMapper.readerForListOf(String.class).readValue(questionsNode);
-            return questions.stream().filter(question -> !question.isBlank()).limit(5).toList();
+            List<GeneratedQuestion> questions = new java.util.ArrayList<>();
+            for (JsonNode item : questionsNode) {
+                GeneratedQuestion parsed = parseQuestion(item);
+                if (parsed != null) {
+                    questions.add(parsed);
+                }
+            }
+            return questions.isEmpty() ? mockQuestions(roleName, level, type) : questions.stream().limit(5).toList();
         } catch (Exception ex) {
+            log.warn("Question generation failed, returning mock questions: {}", ex.getMessage(), ex);
             return mockQuestions(roleName, level, type);
         }
+    }
+
+    private GeneratedQuestion parseQuestion(JsonNode item) throws Exception {
+        String prompt = item.path("prompt").asText("").trim();
+        JsonNode optionsNode = item.path("options");
+        if (prompt.isBlank() || !optionsNode.isArray() || optionsNode.size() < 2) {
+            return null;
+        }
+        List<String> rawOptions = objectMapper.readerForListOf(String.class).readValue(optionsNode);
+        List<String> options = rawOptions.stream()
+                .filter(option -> option != null && !option.isBlank()).map(String::trim).toList();
+        if (options.size() < 2) {
+            return null;
+        }
+        int correctIndex = item.path("correctIndex").asInt(0);
+        if (correctIndex < 0 || correctIndex >= options.size()) {
+            correctIndex = 0;
+        }
+        return new GeneratedQuestion(prompt, options, correctIndex);
     }
 
     public OpenAiFeedbackResult generateFeedback(String question, String answer) {
@@ -94,6 +135,7 @@ public class OpenAiService {
                     node.path("recommendation").asText()
             );
         } catch (Exception ex) {
+            log.warn("Feedback generation failed, returning mock feedback: {}", ex.getMessage(), ex);
             return mockFeedback();
         }
     }
@@ -105,7 +147,55 @@ public class OpenAiService {
             }
             return callResponsesApi(prompt);
         }
+        if ("gemini".equalsIgnoreCase(aiProvider)) {
+            if (geminiApiKey == null || geminiApiKey.isBlank()) {
+                throw new IllegalStateException("GEMINI_API_KEY is required when AI_PROVIDER=gemini");
+            }
+            return callGeminiApi(prompt);
+        }
         return callOllamaApi(prompt);
+    }
+
+    // Google Gemini generateContent API. Enable with AI_PROVIDER=gemini and GEMINI_API_KEY.
+    private String callGeminiApi(String prompt) {
+        Map<String, Object> part = Map.of("text", prompt);
+        Map<String, Object> content = Map.of("parts", List.of(part));
+        Map<String, Object> generationConfig = new LinkedHashMap<>();
+        generationConfig.put("temperature", 0.3);
+        generationConfig.put("responseMimeType", "application/json");
+        generationConfig.put("maxOutputTokens", 4096);
+        generationConfig.put("thinkingConfig", Map.of("thinkingLevel", "low"));
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contents", List.of(content));
+        payload.put("generationConfig", generationConfig);
+
+        JsonNode response = webClientBuilder
+                .baseUrl(geminiBaseUrl)
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeader("x-goog-api-key", geminiApiKey)
+                .build()
+                .post()
+                .uri("/models/{model}:generateContent", geminiModel)
+                .bodyValue(payload)
+                .retrieve()
+                .bodyToMono(JsonNode.class)
+                .block();
+        return extractGeminiText(response);
+    }
+
+    private String extractGeminiText(JsonNode response) {
+        if (response == null) {
+            return "";
+        }
+        for (JsonNode candidate : response.path("candidates")) {
+            for (JsonNode part : candidate.path("content").path("parts")) {
+                if (part.path("text").isTextual()) {
+                    return part.path("text").asText();
+                }
+            }
+        }
+        return "";
     }
 
     private String callOllamaApi(String prompt) {
@@ -187,13 +277,29 @@ public class OpenAiService {
         return cleaned;
     }
 
-    private List<String> mockQuestions(String roleName, String level, InterviewType type) {
+    private List<GeneratedQuestion> mockQuestions(String roleName, String level, InterviewType type) {
+        String topic = type.name().toLowerCase().replace("_", " ");
         return List.of(
-                "Tell me about a recent project where you had to make a difficult technical tradeoff.",
-                "How would you approach debugging a production issue in a " + roleName + " role?",
-                "Explain a core concept a " + level + " " + roleName + " should understand deeply.",
-                "Describe how you would communicate risk and progress to stakeholders.",
-                "Walk through how you would improve a system or workflow related to " + type.name().toLowerCase().replace("_", " ") + "."
+                new GeneratedQuestion(
+                        "For a " + level + " " + roleName + ", which practice most improves code maintainability?",
+                        List.of("Writing clear, well-named, tested code", "Avoiding all code comments",
+                                "Maximizing lines of code", "Skipping code reviews to move faster"), 0),
+                new GeneratedQuestion(
+                        "When debugging a production issue, what is the best first step?",
+                        List.of("Restart every server immediately", "Reproduce and isolate the problem from logs and metrics",
+                                "Blame the last person who deployed", "Roll back all changes from the past month"), 1),
+                new GeneratedQuestion(
+                        "How should you communicate risk and progress to stakeholders?",
+                        List.of("Only report once the project is finished", "Hide risks until they become blockers",
+                                "Share regular, honest updates with clear tradeoffs", "Send raw logs with no summary"), 2),
+                new GeneratedQuestion(
+                        "Which approach best handles a difficult technical tradeoff?",
+                        List.of("Always pick the newest technology", "Always pick the cheapest option",
+                                "Ignore non-functional requirements", "Weigh constraints, cost, and long-term impact"), 3),
+                new GeneratedQuestion(
+                        "What most improves a workflow related to " + topic + "?",
+                        List.of("Automating repetitive, error-prone steps", "Adding more manual approvals everywhere",
+                                "Removing all monitoring", "Documenting nothing to save time"), 0)
         );
     }
 

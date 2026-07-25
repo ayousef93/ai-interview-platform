@@ -16,7 +16,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.Transient;
+
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -42,11 +46,39 @@ public class Question {
     @Column(nullable = false)
     private int position;
 
+    /** JSON array of answer choices for multiple-choice questions. Null for free-text questions. */
+    @Column(columnDefinition = "TEXT")
+    private String options;
+
+    /** Zero-based index into {@link #options} of the correct choice. Null for free-text questions. */
+    @Column(name = "correct_option")
+    private Integer correctOption;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
+    }
+
+    private static final ObjectMapper OPTIONS_MAPPER = new ObjectMapper();
+
+    /** Parsed list of choices, or an empty list for free-text questions. */
+    @Transient
+    public List<String> optionList() {
+        if (options == null || options.isBlank()) {
+            return List.of();
+        }
+        try {
+            return OPTIONS_MAPPER.readerForListOf(String.class).readValue(options);
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    @Transient
+    public boolean isMultipleChoice() {
+        return !optionList().isEmpty() && correctOption != null;
     }
 }
