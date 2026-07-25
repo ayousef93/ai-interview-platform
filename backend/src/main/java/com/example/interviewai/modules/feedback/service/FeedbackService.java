@@ -38,6 +38,9 @@ public class FeedbackService {
     }
 
     private Feedback create(Answer answer) {
+        if (answer.getQuestion().isMultipleChoice()) {
+            return feedbackRepository.save(gradeMultipleChoice(answer));
+        }
         OpenAiFeedbackResult result = openAiService.generateFeedback(
                 answer.getQuestion().getPrompt(),
                 answer.getAnswerText()
@@ -50,6 +53,26 @@ public class FeedbackService {
                 .improvedAnswer(result.improvedAnswer())
                 .recommendation(result.recommendation())
                 .build());
+    }
+
+    /** Deterministic grading for multiple-choice questions: 10 for the correct option, 0 otherwise. */
+    private Feedback gradeMultipleChoice(Answer answer) {
+        var question = answer.getQuestion();
+        List<String> options = question.optionList();
+        int correctIndex = question.getCorrectOption();
+        String correctOption = correctIndex >= 0 && correctIndex < options.size() ? options.get(correctIndex) : "";
+        boolean correct = correctOption.equalsIgnoreCase(answer.getAnswerText().trim());
+
+        return Feedback.builder()
+                .answer(answer)
+                .score(correct ? BigDecimal.TEN : BigDecimal.ZERO)
+                .strengths(correct ? "Correct choice" : "")
+                .weaknesses(correct ? "" : "Selected an incorrect option")
+                .improvedAnswer("Correct answer: " + correctOption)
+                .recommendation(correct
+                        ? "Well done — you selected the correct answer."
+                        : "Review this topic. The correct answer was: " + correctOption)
+                .build();
     }
 
     private String join(List<String> values) {

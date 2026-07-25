@@ -94,6 +94,8 @@ function SessionContent() {
 
   const words  = answer.trim().split(/\s+/).filter(Boolean).length;
   const isLast = total > 0 && idx + 1 >= total;
+  const options = question?.options ?? [];
+  const isMultipleChoice = options.length > 0;
 
   return (
     <main className="min-h-screen bg-surface lg:pl-64">
@@ -134,28 +136,65 @@ function SessionContent() {
 
             <Card>
               <div className="mb-3 flex items-center justify-between">
-                <label htmlFor="answer" className="text-sm font-bold text-zinc-200">Your answer</label>
+                <label htmlFor="answer" className="text-sm font-bold text-zinc-200">
+                  {isMultipleChoice ? "Select an answer" : "Your answer"}
+                </label>
                 {submitted && (
                   <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-300">
                     <CheckCircle2 className="h-3 w-3" /> Submitted
                   </span>
                 )}
               </div>
-              <textarea
-                id="answer"
-                className={cn(
-                  "focus-ring w-full min-h-52 resize-y rounded-xl border p-4 text-sm text-white placeholder:text-zinc-600 transition-colors",
-                  submitted
-                    ? "border-emerald-500/30 bg-emerald-500/5 cursor-not-allowed"
-                    : "border-line bg-white/[0.05] hover:border-white/[0.18] hover:bg-white/[0.07]"
-                )}
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder="Structure your response clearly — mention context, tradeoffs, and outcomes where relevant."
-                disabled={submitted}
-              />
+              {isMultipleChoice ? (
+                <div className="grid gap-2.5">
+                  {options.map((option, i) => {
+                    const selected = answer === option;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={submitted}
+                        onClick={() => setAnswer(option)}
+                        className={cn(
+                          "focus-ring flex w-full items-center gap-3 rounded-xl border p-4 text-left text-sm transition-colors",
+                          submitted ? "cursor-not-allowed" : "hover:border-white/[0.18] hover:bg-white/[0.07]",
+                          selected
+                            ? "border-violet-500/50 bg-violet-500/10 text-white"
+                            : "border-line bg-white/[0.05] text-zinc-200"
+                        )}
+                      >
+                        <span className={cn(
+                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
+                          selected ? "border-violet-400 bg-violet-500 text-white" : "border-white/20 text-zinc-400"
+                        )}>
+                          {String.fromCharCode(65 + i)}
+                        </span>
+                        <span>{option}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <textarea
+                  id="answer"
+                  className={cn(
+                    "focus-ring w-full min-h-52 resize-y rounded-xl border p-4 text-sm text-white placeholder:text-zinc-600 transition-colors",
+                    submitted
+                      ? "border-emerald-500/30 bg-emerald-500/5 cursor-not-allowed"
+                      : "border-line bg-white/[0.05] hover:border-white/[0.18] hover:bg-white/[0.07]"
+                  )}
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  placeholder="Structure your response clearly — mention context, tradeoffs, and outcomes where relevant."
+                  disabled={submitted}
+                />
+              )}
               <div className="mt-4 flex items-center justify-between gap-3">
-                <span className="text-xs text-zinc-600">{words} word{words !== 1 ? "s" : ""}</span>
+                <span className="text-xs text-zinc-600">
+                  {isMultipleChoice
+                    ? (answer ? "Answer selected" : "No answer selected")
+                    : `${words} word${words !== 1 ? "s" : ""}`}
+                </span>
                 <div className="flex gap-2">
                   <Button variant="secondary" loading={submitting} disabled={submitted || !answer.trim()} icon={<Send className="h-4 w-4" />} onClick={submitAnswer}>
                     Submit answer
